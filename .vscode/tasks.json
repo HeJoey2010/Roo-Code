@@ -69,6 +69,30 @@
 				"group": "watch",
 				"reveal": "always"
 			}
+		},
+		{
+			"label": "bundle",
+			"type": "shell",
+			"command": "pnpm bundle",
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			},
+			"problemMatcher": {
+				"owner": "esbuild",
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": false,
+					"beginsPattern": "esbuild-problem-matcher#onStart",
+					"endsPattern": "esbuild-problem-matcher#onEnd"
+				}
+			},
+			"presentation": {
+				"group": "build",
+				"reveal": "always"
+			}
 		}
 	]
 }

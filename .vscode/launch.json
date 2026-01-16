@@ -13,7 +13,7 @@
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}/src"],
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/src/dist/**/*.js"],
-			"preLaunchTask": "${defaultBuildTask}",
+			"preLaunchTask": "watch",
 			"env": {
 				"NODE_ENV": "development",
 				"VSCODE_DEBUG_MODE": "true"
@@ -23,7 +23,31 @@
 				"hidden": false,
 				"group": "tasks",
 				"order": 1
-			}
+			},
+			"skipFiles": ["<node_internals>/**"],
+			"console": "integratedTerminal"
+		},
+		{
+			"name": "Run Extension (No Watch)",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}/src"],
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/src/dist/**/*.js"],
+			"preLaunchTask": "bundle",
+			"env": {
+				"NODE_ENV": "development",
+				"VSCODE_DEBUG_MODE": "true"
+			},
+			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+			"presentation": {
+				"hidden": false,
+				"group": "tasks",
+				"order": 2
+			},
+			"skipFiles": ["<node_internals>/**"],
+			"console": "integratedTerminal"
 		}
 	]
 }
