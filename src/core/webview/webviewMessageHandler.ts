@@ -426,6 +426,27 @@ export const webviewMessageHandler = async (
 		}
 	}
 
+	async function handleTerminal(message: string) {
+		let terminal = vscode.window.terminals.find((t) => t.name === "claude terminal")
+		if (!terminal) {
+			terminal = vscode.window.createTerminal("claude terminal")
+		}
+
+		terminal.show()
+		await vscode.commands.executeCommand("workbench.action.terminal.focus")
+		terminal.sendText("claude", true)
+		terminal.sendText("\r", false) // 再发一个“回车键”
+
+		setTimeout(() => {
+			const msg = message?.trim() || "claude"
+			const cmd = `${msg}`
+
+			terminal.show(true)
+			terminal.sendText(cmd, false) // 发命令本身
+			terminal.sendText("\r", false) // 再发一个“回车键”
+		}, 100) // 等 CLI 启动好，视情况调整延迟
+	}
+
 	/**
 	 * Handles message modification operations (delete or edit) with confirmation dialog
 	 * @param messageTs Timestamp of the message to operate on
@@ -538,25 +559,10 @@ export const webviewMessageHandler = async (
 					`Failed to create task: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
+			if (message.text) {
+				await handleTerminal(message.text)
+			}
 
-
-			     let terminal = vscode.window.terminals.find(t => t.name === 'claude terminal');
-							if (!terminal) {
-								
-								terminal = vscode.window.createTerminal('claude terminal');
-							}
-							terminal.show();
-							await vscode.commands.executeCommand('workbench.action.terminal.focus');
-						    terminal.sendText('claude',true);
-					
-							setTimeout(() => {
-							  const msg =  message.text?.trim() || "claude";
-							const cmd = `claude ${msg}`;
-					
-							terminal.show(true);
-							terminal.sendText(cmd, false);  // 发命令本身
-							terminal.sendText('\r', false); // 再发一个“回车键”
-							}, 500); // 等 CLI 启动好，视情况调整延迟
 			break
 		case "customInstructions":
 			await provider.updateCustomInstructions(message.text)
@@ -571,30 +577,11 @@ export const webviewMessageHandler = async (
 			}
 
 			const lastMessage = provider.getCurrentTask().clineMessages.at(-1)
-				const isResumingCompletedTask =
-					lastMessage?.ask === "completion_result" || lastMessage?.ask === "resume_completed_task"
-				if (isResumingCompletedTask) {
-					  let terminal = vscode.window.terminals.find(t => t.name === 'claude terminal');
-							if (!terminal) {
-								
-								terminal = vscode.window.createTerminal('claude terminal');
-							}
-							terminal.show();
-							await vscode.commands.executeCommand('workbench.action.terminal.focus');
-						    terminal.sendText('claude',true);
-					
-							setTimeout(() => {
-							  const msg =  message.text?.trim() || "claude";
-							const cmd = `claude ${msg}`;
-					
-							terminal.show(true);
-							terminal.sendText(cmd, false);  // 发命令本身
-							terminal.sendText('\r', false); // 再发一个“回车键”
-							}, 500); // 等 CLI 启动好，视情况调整延迟
-						
-
-				}
-
+			const isResumingCompletedTask =
+				lastMessage?.ask === "completion_result" || lastMessage?.ask === "resume_completed_task"
+			if (isResumingCompletedTask && message.text) {
+				await handleTerminal(message.text)
+			}
 
 			break
 
