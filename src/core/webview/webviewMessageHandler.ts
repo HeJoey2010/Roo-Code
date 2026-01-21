@@ -434,7 +434,7 @@ export const webviewMessageHandler = async (
 		}
 
 		const msg = message?.trim() || cli
-		const cmd = `${msg}`
+		const cmd = `${msg} 请在输出结尾单独一行写：###TASK_DONE###`
 
 		// 显示终端但不抢焦点，保持光标留在编辑器
 		terminal.show(true)
@@ -453,18 +453,17 @@ export const webviewMessageHandler = async (
 			}
 		  else  {
 		   terminal.sendText(cli, true) // 发送 CLI 命令并回车
-		  await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
-
+		   
+		  await new Promise(resolve => setTimeout(resolve, 6000)) // 等待1秒确保终端准备好
 
 		  }
 		  
-	
 		}
 
-	       await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
-			terminal.sendText(cmd,false)
-			terminal.sendText("\r", false)
-			 await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
+	    await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
+		terminal.sendText(cmd,false)
+		terminal.sendText("\r", false)
+		await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
 
 		
 	
@@ -584,10 +583,10 @@ export const webviewMessageHandler = async (
 			}
 				if (message.text) {
 					// 并行打开/使用两个终端，而不是顺序等待
-					await Promise.all([
-						 handleTerminal(message.text, "claude"),
-						 handleTerminal(message.text, "qwen"),
-					])
+					// await Promise.all([
+					// 	 handleTerminal(message.text, "claude"),
+					// 	 handleTerminal(message.text, "qwen"),
+					// ])
 				}
 
 			break
@@ -607,10 +606,10 @@ export const webviewMessageHandler = async (
 			const isResumingCompletedTask =
 				lastMessage?.ask === "completion_result" || lastMessage?.ask === "resume_completed_task"
 			if (isResumingCompletedTask && message.text) {
-					await Promise.all([
-						handleTerminal(message.text, "claude"),
-						handleTerminal(message.text, "qwen"),
-					])
+					// await Promise.all([
+					// 	handleTerminal(message.text, "claude"),
+					// 	handleTerminal(message.text, "qwen"),
+					// ])
 			}
 
 			break
