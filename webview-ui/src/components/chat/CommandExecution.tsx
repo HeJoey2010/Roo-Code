@@ -1,4 +1,4 @@
-import { useCallback, useState, memo, useMemo } from "react"
+import { useCallback, useState, memo, useMemo, useEffect, useRef } from "react"
 import { useEvent } from "react-use"
 import { t } from "i18next"
 import { ChevronDown, OctagonX } from "lucide-react"
@@ -47,6 +47,65 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 	const [isExpanded, setIsExpanded] = useState(terminalShellIntegrationDisabled)
 	const [streamingOutput, setStreamingOutput] = useState("")
 	const [status, setStatus] = useState<CommandExecutionStatus | null>(null)
+
+	const formatDuration = (milliseconds: number): string => {
+		const totalSeconds = Math.floor(milliseconds / 1000)
+		const hours = Math.floor(totalSeconds / 3600)
+		const minutes = Math.floor((totalSeconds % 3600) / 60)
+		const seconds = totalSeconds % 60
+
+		const parts: string[] = []
+
+		if (hours > 0) {
+			parts.push(`${hours}h`)
+		}
+		if (minutes > 0) {
+			parts.push(`${minutes}m`)
+		}
+		if (seconds > 0 || parts.length === 0) {
+			parts.push(`${seconds}s`)
+		}
+
+		return parts.join(" ")
+	}
+
+	const [startedAt, setStartedAt] = useState<number | null>(null)
+	const [endedAt, setEndedAt] = useState<number | null>(null)
+	const [currentTime, setCurrentTime] = useState<number | null>(null)
+	const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+	// 实时更新计时器
+	useEffect(() => {
+		if (startedAt && !endedAt) {
+			// 命令正在运行，每秒更新时间
+			timerRef.current = setInterval(() => {
+				setCurrentTime(Date.now())
+			}, 1000)
+			return () => {
+				if (timerRef.current) {
+					clearInterval(timerRef.current)
+					timerRef.current = null
+				}
+			}
+		} else if (endedAt) {
+			// 命令已结束，清除定时器并设置最终时间
+			if (timerRef.current) {
+				clearInterval(timerRef.current)
+				timerRef.current = null
+			}
+			setCurrentTime(endedAt)
+		}
+	}, [startedAt, endedAt])
+
+	// 计算执行时长（实时更新）
+	const executionDuration = useMemo(() => {
+		if (startedAt && (currentTime || endedAt)) {
+			const endTime = endedAt || currentTime || Date.now()
+			const duration = endTime - startedAt
+			return formatDuration(duration)
+		}
+		return null
+	}, [startedAt, endedAt, currentTime])
 
 	// The command's output can either come from the text associated with the
 	// task message (this is the case for completed commands) or from the
@@ -125,6 +184,15 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 					switch (data.status) {
 						case "started":
 							setStatus(data)
+							if (data.startedAt) {
+								setStartedAt(data.startedAt)
+							}
+							break
+						case "exited":
+							setStatus(data)
+							if (data.endedAt) {
+								setEndedAt(data.endedAt)
+							}
 							break
 						case "output":
 							setStreamingOutput(data.output)
@@ -150,17 +218,24 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 				<div className="flex flex-row items-center gap-2">
 					{icon}
 					{title}
-					{status?.status === "exited" && (
+					{(status?.status === "exited" || status?.status === "started") && (
 						<div className="flex flex-row items-center gap-2 font-mono text-xs">
-							<StandardTooltip
-								content={t("chat.commandExecution.exitStatus", { exitStatus: status.exitCode })}>
-								<div
-									className={cn(
-										"rounded-full size-2",
-										status.exitCode === 0 ? "bg-green-600" : "bg-red-600",
-									)}
-								/>
-							</StandardTooltip>
+							{status?.status === "exited" && (
+								<StandardTooltip
+									content={t("chat.commandExecution.exitStatus", { exitStatus: status.exitCode })}>
+									<div
+										className={cn(
+											"rounded-full size-2",
+											status.exitCode === 0 ? "bg-green-600" : "bg-red-600",
+										)}
+									/>
+								</StandardTooltip>
+							)}
+							{executionDuration && (
+								<div className="bg-vscode-button-secondaryBackground text-vscode-button-secondaryForeground px-2 py-0.5 rounded-md text-xs font-medium">
+									{executionDuration}
+								</div>
+							)}
 						</div>
 					)}
 				</div>

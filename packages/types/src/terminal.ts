@@ -10,6 +10,7 @@ export const commandExecutionStatusSchema = z.discriminatedUnion("status", [
 		status: z.literal("started"),
 		pid: z.number().optional(),
 		command: z.string(),
+		startedAt: z.number().optional(),
 	}),
 	z.object({
 		executionId: z.string(),
@@ -20,6 +21,7 @@ export const commandExecutionStatusSchema = z.discriminatedUnion("status", [
 		executionId: z.string(),
 		status: z.literal("exited"),
 		exitCode: z.number().optional(),
+		endedAt: z.number().optional(),
 	}),
 	z.object({
 		executionId: z.string(),
