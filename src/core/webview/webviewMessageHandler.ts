@@ -5,6 +5,24 @@ import * as fs from "fs/promises"
 import { getRooDirectoriesForCwd } from "../../services/roo-config/index.js"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
+import { exec, spawn } from 'child_process';
+import { promisify } from 'util';
+
+
+interface HandleTerminalOptions {
+  cwd?: string;           // 工作目录
+  env?: NodeJS.ProcessEnv; // 环境变量
+  timeout?: number;       // 超时时间（毫秒）
+  args?: string[];        // 传递给脚本的参数
+}
+
+interface HandleTerminalResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  success: boolean;
+}
+const execAsync = promisify(exec);
 
 import {
 	type Language,
@@ -66,6 +84,8 @@ const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 
 import { MarketplaceManager, MarketplaceItemType } from "../../services/marketplace"
 import { setPendingTodoList } from "../tools/UpdateTodoListTool"
+import { basicExample, handleClaudeAsync } from "./ClaudeAgent"
+import { query } from "@anthropic-ai/claude-agent-sdk"
 
 export const webviewMessageHandler = async (
 	provider: ClineProvider,
@@ -426,56 +446,33 @@ export const webviewMessageHandler = async (
 		}
 	}
 
-	async function handleTerminal(message: string, cli: string) {
-		let terminal = vscode.window.terminals.find((t) => t.name === cli + " terminal")
-		const isNew = !terminal
-		if (!terminal) {
-			terminal = vscode.window.createTerminal(cli + " terminal")
-		}
 
-		const msg = message?.trim() || cli
-		const cmd = `${msg} 请在输出结尾单独一行写：###TASK_DONE###`
 
-		// 显示终端但不抢焦点，保持光标留在编辑器
-		terminal.show(true)
-         await vscode.commands.executeCommand("workbench.action.terminal.focus")
-		// 第一次创建该终端时，先启动对应的 CLI 命令（如 "claude" / "qwen"）
-		if (isNew) {
-			
-			if(cli.includes('claude') )  {
-				terminal.sendText(cli, true) // 发送 CLI 命令并回车
-          
-				terminal.sendText("\r", false)
-              
-			 await new Promise(resolve => setTimeout(resolve, 4000)) 
-	
 
-			}
-		  else  {
-		   terminal.sendText(cli, true) // 发送 CLI 命令并回车
-		   
-		  await new Promise(resolve => setTimeout(resolve, 6000)) // 等待1秒确保终端准备好
 
-		  }
-		  
-		}
 
-	    await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
-		terminal.sendText(cmd,false)
-		terminal.sendText("\r", false)
-		await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
 
-		
-	
+// 使用示例
+
+ async function handleTerminal (
+  message: string,
+): Promise<{
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+}> {
+ 
+
+
+	const result = await handleClaudeAsync({
+	message: message,
+	skipPermissions: true
+	});
+	console.log('result', result);
+	return result;
 	}
 
-	/**
-	 * Handles message modification operations (delete or edit) with confirmation dialog
-	 * @param messageTs Timestamp of the message to operate on
-	 * @param operation Type of operation ('delete' or 'edit')
-	 * @param editedContent New content for edit operations
-	 * @returns Promise<void>
-	 */
+	
 	const handleMessageModificationsOperation = async (
 		messageTs: number,
 		operation: "delete" | "edit",
@@ -582,11 +579,8 @@ export const webviewMessageHandler = async (
 				)
 			}
 				if (message.text) {
-					// 并行打开/使用两个终端，而不是顺序等待
-					// await Promise.all([
-					// 	 handleTerminal(message.text, "claude"),
-					// 	 handleTerminal(message.text, "qwen"),
-					// ])
+                await handleTerminal(message.text)
+
 				}
 
 			break
@@ -602,14 +596,14 @@ export const webviewMessageHandler = async (
 					?.handleWebviewAskResponse(message.askResponse!, resolved.text, resolved.images)
 			}
 
-				const lastMessage = provider.getCurrentTask().clineMessages.at(-1)
+				const lastMessage = provider.getCurrentTask()?.clineMessages.at(-1)
 			const isResumingCompletedTask =
 				lastMessage?.ask === "completion_result" || lastMessage?.ask === "resume_completed_task"
 			if (isResumingCompletedTask && message.text) {
-					// await Promise.all([
-					// 	handleTerminal(message.text, "claude"),
-					// 	handleTerminal(message.text, "qwen"),
-					// ])
+					await Promise.all([
+						handleTerminal(message.text),
+					
+					])
 			}
 
 			break

@@ -61,11 +61,12 @@ export class ExecuteCommandTool extends BaseTool<"execute_command"> {
 			const unescapedCommand = unescapeHtmlEntities(command)
 			let didApprove
 			// let didApprove = await askApproval("command", unescapedCommand)
-			if (command.startsWith("claude -p --dangerously-skip-permissions")) {
-				didApprove = true
-			} else {
-				didApprove = await askApproval("command", unescapedCommand)
-			}
+			// if (command.startsWith("claude -p --dangerously-skip-permissions")) {
+			// 	didApprove = true
+			// } else {
+			// 	didApprove = await askApproval("command", unescapedCommand)
+			// }
+			didApprove = await askApproval("command", unescapedCommand)
 
 			if (!didApprove) {
 				return

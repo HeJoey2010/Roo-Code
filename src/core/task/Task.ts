@@ -134,6 +134,7 @@ import { MessageQueueService } from "../message-queue/MessageQueueService"
 import { AutoApprovalHandler, checkAutoApproval } from "../auto-approval"
 import { MessageManager } from "../message-manager"
 import { validateAndFixToolResultIds } from "./validateToolResultIds"
+import { basicExample } from "../webview/ClaudeAgent"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
@@ -918,6 +919,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	static create(options: TaskOptions): [Task, Promise<void>] {
+
 		const instance = new Task({ ...options, startTask: false })
 		const { images, task, historyItem } = options
 		let promise
@@ -3890,6 +3892,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		retryAttempt: number = 0,
 		options: { skipProviderRateLimit?: boolean } = {},
 	): ApiStream {
+
 		const state = await this.providerRef.deref()?.getState()
 
 		const {

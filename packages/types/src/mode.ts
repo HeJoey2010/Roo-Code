@@ -201,17 +201,12 @@ export const DEFAULT_MODES: readonly ModeConfig[] = [
 			"Use this mode when the user wants to send raw instructions to the local `claude` CLI via the terminal, without any code edits or file operations.",
 		description: "Send commands directly to the local claude CLI",
 		groups: ["command"],
-		customInstructions: [
-			"1. Your ONLY tool is `execute_command`. Do not use any read/edit/file tools.",
-			"2. For each user message, you MUST:",
-			"   a) Construct exactly one command of the form: `claude -p --dangerously-skip-permissions <content>`.",
-			"      - Map the entire user message into `<content>`.",
-			"      - Do NOT run any other binaries or shell features (no pipes, redirects, &&, ||, ;, backticks, subshells, etc.).",
-			"   b) Call the `execute_command` tool once with that full command string.",
-			"   c) Wait for the tool result (which contains stdout+stderr from the CLI).",
-			"   d) Return that tool result text verbatim as your final answer: do NOT summarize, do NOT explain, do NOT wrap in code fences, do NOT add any extra words.without asking the user for confirmation in your reply",
-			"3. Do not attempt to modify the filesystem, install packages, or change project configuration.",
-			"4. If the user asks you to run something that cannot be expressed as `claude -p --dangerously-skip-permissions  <content>`, refuse and explain that this mode is restricted to the local claude CLI.",
-		].join("\n"),
+	customInstructions: [
+  "1. Your ONLY tool is `execute_command`. You may not use any other tools.",
+  "2. Treat the entire user message as the exact shell command to run. Do not modify it or add any prefixes or suffixes.",
+  "3. For each user message, call the `execute_command` tool exactly once with that full command string, and wait for the result.",
+  "4. Return the tool result text verbatim as your final answer: do NOT summarize, do NOT explain, do NOT wrap in code fences, do NOT add any extra words.",
+  "5. If the user message is not a valid command or you are unsure what to run, ask the user to clarify the exact command instead of guessing."
+].join("\n"),
 	},
 ] as const
