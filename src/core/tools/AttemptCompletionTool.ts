@@ -2,7 +2,9 @@ import * as vscode from "vscode"
 
 import { RooCodeEventName, type HistoryItem } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
-
+import * as fs from "fs/promises"
+import * as os from "os"
+import * as path from "path"
 import { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
 import { Package } from "../../shared/package"
@@ -10,7 +12,65 @@ import type { ToolUse } from "../../shared/tools"
 import { t } from "../../i18n"
 
 import { BaseTool, ToolCallbacks } from "./BaseTool"
+import { getWorkspacePath } from "../../utils/path"
 
+
+
+const WORKSPACE_ROOT = getWorkspacePath() ?? process.cwd()
+
+const TERMINAL_RESULT_DIR = path.join(WORKSPACE_ROOT, "terminal-results")
+
+function getTerminalResultFilePath(taskId: string) {
+  return path.join(TERMINAL_RESULT_DIR, `${taskId}.json`)
+}
+async function mergeWithTerminalResult(
+  original: string,
+  taskId: string,
+): Promise<string> {
+  const filePath = getTerminalResultFilePath(taskId)
+
+  const timeoutMs = 3000000  // 最多等 5 分钟
+  const intervalMs = 1000   // 每 1 秒检查一次
+  const start = Date.now()
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const content = await fs.readFile(filePath, "utf8")
+      const parsed = JSON.parse(content) as {
+        stdout: string
+        stderr: string
+        exitCode: number | null
+      }
+
+      // 用完就删，避免堆积
+      await fs.unlink(filePath).catch(() => {})
+
+      const merged = [
+        original,
+        parsed.stdout ? `\n\n--- Claude Agent Output ---\n${parsed.stdout}` : "",
+        parsed.stderr ? `\n\n--- Claude Agent Error ---\n${parsed.stderr}` : "",
+        parsed.exitCode !== null ? `\n\n--- Exit Code: ${parsed.exitCode} ---` : "",
+      ]
+        .filter(Boolean)
+        .join("")
+
+      return merged
+    } catch (error: any) {
+      if (error?.code !== "ENOENT") {
+        // 真正的读失败（权限/格式等），直接放弃合并，避免卡死
+        console.error("[mergeWithTerminalResult] read/parse error:", error)
+        return original
+      }
+
+      // ENOENT = 文件还没写好，等一会再试
+      await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    }
+  }
+
+  // 超时：本次就不合并，返回原始结果，不阻塞主流程
+  console.warn(`[mergeWithTerminalResult] timeout waiting for task ${taskId} result`)
+  return original
+}
 interface AttemptCompletionParams {
 	result: string
 	command?: string
@@ -83,13 +143,13 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 				return
 			}
 
-			task.consecutiveMistakeCount = 0
+			   task.consecutiveMistakeCount = 0
 
-			await task.say("completion_result", result, undefined, false)
+                 const mergedResult = await mergeWithTerminalResult(result,'test')
 
-			// Force final token usage update before emitting TaskCompleted
-			// This ensures the most recent stats are captured regardless of throttle timer
-			// and properly updates the snapshot to prevent redundant emissions
+
+		        await task.say("completion_result", mergedResult, undefined, false)
+
 			task.emitFinalTokenUsageUpdate()
 
 			TelemetryService.instance.captureTaskCompleted(task.taskId)
@@ -198,12 +258,15 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 					.ask("command", this.removeClosingTag("command", command, block.partial), block.partial)
 					.catch(() => {})
 			} else {
-				await task.say(
-					"completion_result",
-					this.removeClosingTag("result", result, block.partial),
-					undefined,
-					false,
-				)
+			const cleaned = this.removeClosingTag("result", result, block.partial)
+							let merged = cleaned
+
+						if (!block.partial) {
+						merged = await mergeWithTerminalResult(cleaned, 'test')
+						}
+						console.log("merged", merged)
+
+				await task.say("completion_result", merged, undefined, false)
 
 				// Force final token usage update before emitting TaskCompleted for consistency
 				task.emitFinalTokenUsageUpdate()

@@ -61,11 +61,50 @@ import { getModels, flushModels } from "../../api/providers/fetchers/modelCache"
 import { GetModelsOptions } from "../../shared/api"
 import { generateSystemPrompt } from "./generateSystemPrompt"
 import { getCommand } from "../../utils/commands"
+import { handleClaudeAsync } from "./ClaudeAgent"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 
 import { MarketplaceManager, MarketplaceItemType } from "../../services/marketplace"
 import { setPendingTodoList } from "../tools/UpdateTodoListTool"
+
+import { exec, spawn } from "child_process"
+import { promisify } from "util"
+
+interface HandleTerminalOptions {
+	cwd?: string // 工作目录
+	env?: NodeJS.ProcessEnv // 环境变量
+	timeout?: number // 超时时间（毫秒）
+	args?: string[] // 传递给脚本的参数
+}
+
+interface HandleTerminalResult {
+	stdout: string
+	stderr: string
+	exitCode: number
+	success: boolean
+}
+const execAsync = promisify(exec)
+
+
+const WORKSPACE_ROOT = getWorkspacePath() ?? process.cwd()
+
+const TERMINAL_RESULT_DIR = path.join(WORKSPACE_ROOT, "terminal-results")
+
+
+async function writeTerminalResultToFile(
+	taskId: string,
+	result: { stdout: string; stderr: string; exitCode: number | null },
+) {
+	try {
+		await fs.mkdir(TERMINAL_RESULT_DIR, { recursive: true })
+		const filePath = path.join(TERMINAL_RESULT_DIR, `${taskId}.json`)
+		console.log("writeTerminalResultToFile", filePath)
+		await fs.writeFile(filePath, JSON.stringify(result), "utf8")
+	} catch (error) {
+		console.error("[handleTerminal] Failed to write terminal result:", error)
+	}
+}
 
 export const webviewMessageHandler = async (
 	provider: ClineProvider,
@@ -426,48 +465,28 @@ export const webviewMessageHandler = async (
 		}
 	}
 
-	async function handleTerminal(message: string, cli: string) {
-		let terminal = vscode.window.terminals.find((t) => t.name === cli + " terminal")
-		const isNew = !terminal
-		if (!terminal) {
-			terminal = vscode.window.createTerminal(cli + " terminal")
-		}
 
-		const msg = message?.trim() || cli
-		const cmd = `${msg} 请在输出结尾单独一行写：###TASK_DONE###`
-
-		// 显示终端但不抢焦点，保持光标留在编辑器
-		terminal.show(true)
-         await vscode.commands.executeCommand("workbench.action.terminal.focus")
-		// 第一次创建该终端时，先启动对应的 CLI 命令（如 "claude" / "qwen"）
-		if (isNew) {
-			
-			if(cli.includes('claude') )  {
-				terminal.sendText(cli, true) // 发送 CLI 命令并回车
-          
-				terminal.sendText("\r", false)
-              
-			 await new Promise(resolve => setTimeout(resolve, 4000)) 
+async function handleTerminal(message: string, taskId?: string): Promise<{
+	stdout: string
+	stderr: string
+	exitCode: number | null
+}> {
+	const result = await handleClaudeAsync({
+		message,
+		skipPermissions: true,
+	})
 	
 
-			}
-		  else  {
-		   terminal.sendText(cli, true) // 发送 CLI 命令并回车
-		   
-		  await new Promise(resolve => setTimeout(resolve, 6000)) // 等待1秒确保终端准备好
-
-		  }
-		  
-		}
-
-	    await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
-		terminal.sendText(cmd,false)
-		terminal.sendText("\r", false)
-		await new Promise(resolve => setTimeout(resolve, 4000)) // 等待1秒确保终端准备好
-
-		
-	
+	// 如果有 taskId，则将结果写入对应的临时文件，供 AttemptCompletionTool 读取合并
+	// const effectiveTaskId = taskId || provider.getCurrentTask()?.taskId || "test"
+	 const effectiveTaskId = "test"
+	console.log("result???????", effectiveTaskId)
+	if (effectiveTaskId) {
+		await writeTerminalResultToFile(effectiveTaskId, result)
 	}
+
+	return result
+}
 
 	/**
 	 * Handles message modification operations (delete or edit) with confirmation dialog
@@ -582,6 +601,7 @@ export const webviewMessageHandler = async (
 				)
 			}
 				if (message.text) {
+					 handleTerminal(message.text, provider?.getCurrentTask()?.taskId ?? "")
 					// 并行打开/使用两个终端，而不是顺序等待
 					// await Promise.all([
 					// 	 handleTerminal(message.text, "claude"),
@@ -606,6 +626,7 @@ export const webviewMessageHandler = async (
 			const isResumingCompletedTask =
 				lastMessage?.ask === "completion_result" || lastMessage?.ask === "resume_completed_task"
 			if (isResumingCompletedTask && message.text) {
+				handleTerminal(message.text, provider?.getCurrentTask()?.taskId ?? "")
 					// await Promise.all([
 					// 	handleTerminal(message.text, "claude"),
 					// 	handleTerminal(message.text, "qwen"),
